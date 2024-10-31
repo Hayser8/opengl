@@ -157,9 +157,12 @@ out vec4 fragColor;
 void main()
 {
     vec4 textureColor = texture(tex, outTexCoords);
-    float dynamicColor = abs(sin(time * 2.0)); // Color cambia con el tiempo
-    fragColor = vec4(textureColor.rgb * vec3(dynamicColor, 1.0 - dynamicColor, 0.5), textureColor.a);
+    float red = 0.5 + 0.5 * sin(time + outTexCoords.x * 10.0);
+    float green = 0.5 + 0.5 * sin(time + outTexCoords.y * 10.0);
+    float blue = 0.5 + 0.5 * sin(time + outTexCoords.x * 10.0 + outTexCoords.y * 10.0);
+    fragColor = vec4(textureColor.rgb * vec3(red, green, blue), textureColor.a);
 }
+
 '''
 
 metallic = '''
@@ -170,17 +173,84 @@ in vec2 outTexCoords;
 in vec3 outNormals;
 
 uniform sampler2D tex;
+uniform vec3 lightPosition; // Ajusta esta posición de luz en el código
+uniform float time;
 
 out vec4 fragColor;
 
 void main()
 {
     vec4 textureColor = texture(tex, outTexCoords);
-    vec3 lightDirection = normalize(vec3(0.5, 1.0, 0.3));
-    float intensity = max(dot(normalize(outNormals), lightDirection), 0.0);
-    vec3 metalColor = mix(textureColor.rgb, vec3(0.8, 0.8, 0.8), 0.5); // Mezcla con tono metálico
-    fragColor = vec4(metalColor * intensity, textureColor.a);
+    vec3 lightDir = normalize(lightPosition - vec3(0.0, 0.0, 5.0)); // Luz en posición fija
+    float diffuse = max(dot(normalize(outNormals), lightDir), 0.0);
+
+    // Simulación de reflejo especular para un efecto metálico
+    float specularStrength = 0.8;
+    vec3 viewDir = normalize(-vec3(0.0, 0.0, 5.0));
+    vec3 reflectDir = reflect(-lightDir, normalize(outNormals));
+    float spec = pow(max(dot(viewDir, reflectDir), 0.0), 16.0);
+
+    vec3 metalColor = mix(textureColor.rgb, vec3(0.9, 0.9, 1.0), 0.5); // Mezcla con un tono metálico suave
+    vec3 finalColor = metalColor * diffuse + specularStrength * spec * vec3(1.0, 1.0, 1.0);
+
+    fragColor = vec4(finalColor, textureColor.a);
 }
+
+
 '''
 
+ripple = '''
 
+#version 450 core
+
+layout (location = 0) in vec3 position;
+layout (location = 1) in vec2 texCoords;
+layout (location = 2) in vec3 normals;
+
+out vec2 outTexCoords;
+out vec3 outNormals;
+
+uniform float time;
+uniform mat4 modelMatrix;
+uniform mat4 viewMatrix;
+uniform mat4 projectionMatrix;
+
+void main()
+{
+    float ripple = sin(length(position.xy) * 5.0 - time * 5.0) * 0.1;
+    vec3 modifiedPosition = position + normals * ripple;
+    gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(modifiedPosition, 1.0);
+    outTexCoords = texCoords;
+    outNormals = normals;
+}
+
+'''
+
+twist = ''' 
+#version 450 core
+
+layout (location = 0) in vec3 position;
+layout (location = 1) in vec2 texCoords;
+layout (location = 2) in vec3 normals;
+
+out vec2 outTexCoords;
+out vec3 outNormals;
+
+uniform float time;
+uniform mat4 modelMatrix;
+uniform mat4 viewMatrix;
+uniform mat4 projectionMatrix;
+
+void main()
+{
+    float twist = position.y * 0.5;
+    vec3 modifiedPosition = vec3(
+        position.x * cos(twist) - position.z * sin(twist),
+        position.y,
+        position.x * sin(twist) + position.z * cos(twist)
+    );
+    gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(modifiedPosition, 1.0);
+    outTexCoords = texCoords;
+    outNormals = normals;
+}
+'''
