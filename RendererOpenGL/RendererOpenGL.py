@@ -1,109 +1,146 @@
-import numpy as np
-import imageio
 import pygame
 from pygame.locals import *
-from gl import Renderer
-from buffer import Buffer
-from shaders import *
-from model import Model
-import glm
-from PIL import Image
 from OpenGL.GL import *  
+from gl import Renderer
+from buffer import *
+from shaders import *
+from model import *
+import glm
+import imageio
+from PIL import Image
 
-# Configuración para la captura de fotogramas
-capture_frames = True
-frames = []
-width, height = 272, 272  # Resolución ajustada para ser divisible por 16
+# Configuración de pantalla
+screen_width = 540
+screen_height = 540
 
 pygame.init()
-screen = pygame.display.set_mode((width, height), pygame.OPENGL | pygame.DOUBLEBUF)
+
+screen = pygame.display.set_mode((screen_width, screen_height), pygame.OPENGL | pygame.DOUBLEBUF) 
+
 clock = pygame.time.Clock()
 
-# Inicialización del renderer y shaders
-rend = Renderer(screen)
-rend.SetShaders(vertex_shader, fragment_shader)
+renderer = Renderer(screen)
 
-# Modelo y textura
-faceModel = Model("models/model.obj")
-faceModel.AddTexture("textures/model.bmp")
-faceModel.rotation.y = 180
-faceModel.translation.z = -5
-faceModel.scale.x = 2
-faceModel.scale.y = 2
-faceModel.scale.z = 2
+# Texturas de la skybox
+skybox_textures = [
+    "skybox/right.jpg",
+    "skybox/left.jpg",
+    "skybox/top.jpg",
+    "skybox/bottom.jpg",
+    "skybox/front.jpg",
+    "skybox/back.jpg"
+]
 
-rend.scene.append(faceModel)
-isRunning = True
-frame_interval = 5  # Captura un fotograma cada 5 ciclos
-frame_count = 0
+renderer.CreateSkybox(skybox_textures, skybox_vertex_shader, skybox_fragment_shader)
 
-# Revisa que el renderizador esté funcionando
-rend.Render()
-pygame.display.flip()
+# Modelo OBJ
+model = Model("models/Monkey.obj")
+model.AddTexture("textures/MonkeyDiffuse.bmp")
+model.translation.z = -5
+model.translation.y = -1  
+model.scale = glm.vec3(2, 2, 2)
 
-# Captura un fotograma de prueba
-data = pygame.image.tostring(screen, 'RGB')
-image = np.frombuffer(data, np.uint8).reshape((height, width, 3))
-image = np.flip(image, axis=0)  # Voltear verticalmente para alinear la imagen
-imageio.imwrite("test_frame.png", image)  # Guarda el primer fotograma como PNG para inspección
+renderer.scene.append(model)
 
-# Pausa para revisar el fotograma en PNG
-print("Se guardó un fotograma de prueba como 'test_frame.png'. Revisa el archivo antes de continuar.")
+# Variables de control
+is_running = True
 
-# Continuar con el bucle principal si el fotograma de prueba se ve correctamente
-while isRunning:
-    deltaTime = clock.tick(60) / 1000.0
+vertex_shader_program = vertex_shader
+fragment_shader_program = fragment_shader
+
+# Configuración de la cámara
+camera_distance = 7  
+camera_angle = 0
+camera_height = 0
+camera_max_distance = 20  
+camera_min_distance = 3   
+camera_max_height = 7
+camera_min_height = -7
+
+renderer.SetShaders(vertex_shader_program, fragment_shader_program)
+
+frames = []
+
+while is_running: 
+    delta_time = clock.tick(60) / 1000.0
     keys = pygame.key.get_pressed()
-
+    
     for event in pygame.event.get():
         if event.type == QUIT:
-            isRunning = False
-        elif event.type == pygame.KEYDOWN:
+            is_running = False
+        elif event.type == pygame.KEYDOWN: 
             if event.key == pygame.K_ESCAPE:
-                isRunning = False
-            elif event.key == pygame.K_1:
-                rend.filledMode()
-            elif event.key == pygame.K_2:
-                rend.wireframeMode()
-            elif event.key == pygame.K_3:
-                rend.SetShaders(vertex_shader, fragment_shader)
-            elif event.key == pygame.K_4:
-                rend.SetShaders(ripple, fragment_shader)
-            elif event.key == pygame.K_5:
-                rend.SetShaders(twist, fragment_shader)
-            elif event.key == pygame.K_6:
-                rend.SetShaders(wave, fragment_shader)
-            elif event.key == pygame.K_7:
-                rend.SetShaders(pulse, fragment_shader)
-            elif event.key == pygame.K_8:
-                rend.SetShaders(vertex_shader, color)
-            elif event.key == pygame.K_9:
-                rend.SetShaders(vertex_shader, metallic)
+                is_running = False
+            if event.key == pygame.K_1:
+                renderer.FilledMode()
+            if event.key == pygame.K_2:
+                renderer.WireframeMode()
+            if event.key == pygame.K_3:
+                vertex_shader_program = fat_shader
+                renderer.SetShaders(vertex_shader_program, fragment_shader_program)
+            if event.key == pygame.K_4:
+                vertex_shader_program = water_shader
+                renderer.SetShaders(vertex_shader_program, fragment_shader_program)
+            if event.key == pygame.K_5:
+                vertex_shader_program = wave
+                renderer.SetShaders(vertex_shader_program, fragment_shader_program)
+            if event.key == pygame.K_6:
+                vertex_shader_program = pulse
+                renderer.SetShaders(vertex_shader_program, fragment_shader_program)
+            if event.key == pygame.K_7:
+                fragment_shader_program = color
+                renderer.SetShaders(vertex_shader_program, fragment_shader_program)   
+            if event.key == pygame.K_8:
+                fragment_shader_program = metallic
+                renderer.SetShaders(vertex_shader_program, fragment_shader_program)                   
 
-    # Movimiento de cámara y modelo
+    # Movimiento de la luz
     if keys[K_LEFT]:
-        faceModel.rotation.y -= 10 * deltaTime
+        renderer.pointLight.x -= 1 * delta_time
+    
     if keys[K_RIGHT]:
-        faceModel.rotation.y += 10 * deltaTime
-    if keys[K_a]:
-        rend.camera.position.x -= 1 * deltaTime
-    if keys[K_d]:
-        rend.camera.position.x += 1 * deltaTime
-    if keys[K_w]:
-        rend.camera.position.y += 1 * deltaTime
-    if keys[K_s]:
-        rend.camera.position.y -= 1 * deltaTime
+        renderer.pointLight.x += 1 * delta_time
 
-    rend.time += deltaTime
-    rend.Render()
+    if keys[K_UP]:
+        camera_height = min(camera_max_height, camera_height + 2 * delta_time)
+    
+    if keys[K_DOWN]:
+        camera_height = max(camera_min_height, camera_height - 2 * delta_time)
+
+    if keys[K_PAGEUP]:
+        renderer.pointLight.y += 1 * delta_time
+    
+    if keys[K_PAGEDOWN]:
+        renderer.pointLight.y -= 1 * delta_time
+
+    # Movimiento de la cámara
+    if keys[K_a]:
+        camera_angle -= 45 * delta_time
+
+    if keys[K_d]:
+        camera_angle += 45 * delta_time
+
+    if keys[K_w]:
+        camera_distance = max(camera_min_distance, camera_distance - 2 * delta_time)
+
+    if keys[K_s]:
+        camera_distance = min(camera_max_distance, camera_distance + 2 * delta_time)
+
+    # Actualización de la escena
+    renderer.time += delta_time
+
+    renderer.camera.LookAt(model.translation)
+    renderer.camera.Orbit(model.translation, camera_distance, camera_angle, camera_height)
+    renderer.Render()
     pygame.display.flip()
 
-    # Captura de pantalla cada n fotogramas
-    frame_data = glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE)
-    image = Image.frombytes("RGB", (width, height), frame_data)
+    # Captura de cuadros para video
+    frame_data = glReadPixels(0, 0, screen_width, screen_height, GL_RGB, GL_UNSIGNED_BYTE)
+    image = Image.frombytes("RGB", (screen_width, screen_height), frame_data)
     image = image.transpose(Image.FLIP_TOP_BOTTOM)  
     frames.append(image)
 
 pygame.quit()
 
-imageio.mimsave('muestra.mp4', frames, fps=30)
+# Guardado de video
+imageio.mimsave('output.mp4', frames, fps=30)

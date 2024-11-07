@@ -16,9 +16,6 @@ class Buffer(object):
 
         
     def Render(self): 
-        #primero atar a la tarjta de video vbo, vao
-        #bind = atar
-        #ATAR LOS buffers a la tarjeta de video
         glBindBuffer(GL_ARRAY_BUFFER ,self.VBO)
         glBindVertexArray(self.VAO)
         
@@ -62,7 +59,7 @@ class Buffer(object):
 
 
         
-        glDrawArrays(GL_TRIANGLES, 0, int(len(self.vertBuffer)/ 8) ) #8 es la cantidad de datos
+        glDrawArrays(GL_TRIANGLES, 0, int(len(self.vertBuffer)/ 8) ) 
         
 
         
